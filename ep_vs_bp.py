@@ -3,15 +3,16 @@
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+from sklearn.datasets import make_classification
 
 
 # =============================================================================
 # DATA GENERATION
 # =============================================================================
 
-def generate_linearly_separable_data(n_samples=100, seed=42):
+def generate_linearly_separable_data(n_samples=100, seed=42, noise=0.5, separation=2.0, overlap=0.0):
     """
-    Generate simple linearly separable 2D dataset
+    Generate 2D dataset with adjustable difficulty
     
     Parameters:
     -----------
@@ -19,6 +20,16 @@ def generate_linearly_separable_data(n_samples=100, seed=42):
         Total number of samples (split evenly between classes)
     seed : int
         Random seed for reproducibility
+    noise : float
+        Standard deviation of Gaussian noise (higher = more spread)
+        Default 0.5, try 1.0-2.0 for harder tasks
+    separation : float
+        Distance between class centers (lower = harder)
+        Default 2.0 (centers at [-1,-1] and [1,1])
+        Try 1.0 or 0.5 for harder tasks
+    overlap : float
+        Amount to shift classes toward each other (higher = more overlap)
+        0.0 = no overlap, 1.0 = significant overlap
         
     Returns:
     --------
@@ -29,12 +40,17 @@ def generate_linearly_separable_data(n_samples=100, seed=42):
     """
     np.random.seed(seed)
     
-    # Class 0: points around (-1, -1)
-    x0 = np.random.randn(n_samples // 2, 2) * 0.5 + np.array([-1, -1])
+    # Calculate class centers based on separation
+    half_sep = separation / 2
+    center0 = np.array([-half_sep + overlap, -half_sep + overlap])
+    center1 = np.array([half_sep - overlap, half_sep - overlap])
+    
+    # Class 0
+    x0 = np.random.randn(n_samples // 2, 2) * noise + center0
     y0 = np.zeros(n_samples // 2)
     
-    # Class 1: points around (1, 1)
-    x1 = np.random.randn(n_samples // 2, 2) * 0.5 + np.array([1, 1])
+    # Class 1
+    x1 = np.random.randn(n_samples // 2, 2) * noise + center1
     y1 = np.ones(n_samples // 2)
     
     X = np.vstack([x0, x1]).astype(np.float32)
@@ -43,7 +59,6 @@ def generate_linearly_separable_data(n_samples=100, seed=42):
     # Shuffle
     idx = np.random.permutation(n_samples)
     return torch.tensor(X[idx]), torch.tensor(y[idx]).unsqueeze(1)
-
 
 # =============================================================================
 # MODEL
@@ -456,7 +471,8 @@ def plot_weight_evolution(history_bp, history_ep):
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
-def run_comparison(n_samples=100, num_epochs=100, lr=0.1, beta=0.5, seed=42, verbose=True):
+def run_comparison(n_samples=100, num_epochs=100, lr=0.1, beta=0.5, seed=42, 
+                   noise=0.5, separation=2.0, overlap=0.0, verbose=True):
     """
     Run a complete comparison between Backprop and Equilibrium Prop
     
@@ -472,6 +488,12 @@ def run_comparison(n_samples=100, num_epochs=100, lr=0.1, beta=0.5, seed=42, ver
         Nudging factor for EP
     seed : int
         Random seed
+    noise : float
+        Data noise level (higher = harder)
+    separation : float
+        Distance between class centers (lower = harder)
+    overlap : float
+        Class overlap amount (higher = harder)
     verbose : bool
         Print training progress
         
@@ -481,13 +503,20 @@ def run_comparison(n_samples=100, num_epochs=100, lr=0.1, beta=0.5, seed=42, ver
         Dictionary containing data, models, and training histories
     """
     # Generate data
-    X, y = generate_linearly_separable_data(n_samples=n_samples, seed=seed)
+    X, y = generate_linearly_separable_data(
+        n_samples=n_samples, 
+        seed=seed,
+        noise=noise,
+        separation=separation,
+        overlap=overlap
+    )
     
     if verbose:
         print("=" * 50)
         print("Simple Perceptron: Backprop vs Equilibrium Prop")
         print("=" * 50)
         print(f"Dataset: {len(X)} samples")
+        print(f"Noise: {noise}, Separation: {separation}, Overlap: {overlap}")
         print(f"Learning rate: {lr}")
         print(f"Epochs: {num_epochs}")
         print(f"Beta (nudging): {beta}")
@@ -529,7 +558,6 @@ def run_comparison(n_samples=100, num_epochs=100, lr=0.1, beta=0.5, seed=42, ver
         'history_bp': history_bp,
         'history_ep': history_ep
     }
-
 
 def print_summary(results):
     """Print a summary of the results"""
